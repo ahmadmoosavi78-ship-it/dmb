@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#05060C">
+<title>dmb</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#05060C; --skin:#12101C; --sclera:#EFE9E2;
+    --iris-a:#2FBFA0; --iris-b:#1B7A8C; --iris-c:#0B3B4F;
+    --ember:#F0955A; --violet:#8B5CF6; --rose:#EC6FA0;
+    --ink:#F2EFE9; --ink-dim:#9AA0B4;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:'Vazirmatn', sans-serif; color:var(--ink);
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    overflow:hidden; position:relative; background:var(--void);
+  }
+  .blob{ position:fixed; border-radius:50%; filter:blur(70px); opacity:.4; mix-blend-mode:screen; }
+  .b1{ width:60vw; height:60vw; left:-10vw; top:-15vw; background:var(--violet); animation: float1 22s ease-in-out infinite; }
+  .b2{ width:50vw; height:50vw; right:-15vw; bottom:-10vw; background:var(--iris-a); animation: float2 26s ease-in-out infinite; }
+  .b3{ width:40vw; height:40vw; left:35vw; bottom:-20vw; background:var(--ember); opacity:.28; animation: float3 30s ease-in-out infinite; }
+  @keyframes float1{ 0%,100%{transform:translate(0,0) scale(1);} 50%{transform:translate(6vw,4vw) scale(1.15);} }
+  @keyframes float2{ 0%,100%{transform:translate(0,0) scale(1);} 50%{transform:translate(-5vw,-6vw) scale(1.1);} }
+  @keyframes float3{ 0%,100%{transform:translate(0,0) scale(1);} 50%{transform:translate(3vw,-4vw) scale(1.2);} }
+  .vignette{ position:fixed; inset:0; pointer-events:none; background: radial-gradient(ellipse at 50% 50%, transparent 20%, var(--void) 88%); }
+  .stars{ position:fixed; inset:0; pointer-events:none; }
+  .stars span{ position:absolute; border-radius:50%; background:#fff; }
+
+  .stage{ display:flex; flex-direction:column; align-items:center; gap:18px; z-index:2; width:100%; max-width:420px; padding:24px; }
+
+  .dmb-wrap{ width:150px; height:104px; cursor:pointer; user-select:none; position:relative; }
+  .dmb-wrap svg{ width:100%; height:100%; display:block; overflow:visible; }
+  .dmb-wrap.blink .lidTop{ animation: closeTop .32s ease-in-out; }
+  .dmb-wrap.blink .lidBottom{ animation: closeBottom .32s ease-in-out; }
+  @keyframes closeTop{ 0%,100%{transform:translateY(0);} 45%{transform:translateY(30px);} }
+  @keyframes closeBottom{ 0%,100%{transform:translateY(0);} 45%{transform:translateY(-14px);} }
+  .dmb-wrap.thinking #iris-group{ animation-duration:.55s !important; }
+  .dmb-wrap.thinking #pupil{ animation-duration:.55s !important; }
+  @keyframes lookAround{ 0%,100%{transform:translate(0,0);} 18%{transform:translate(10px,-4px);} 38%{transform:translate(-11px,3px);} 58%{transform:translate(5px,5px);} 78%{transform:translate(-5px,-5px);} }
+  @keyframes pupilPulse{ 0%,100%{transform:scale(1);} 50%{transform:scale(.82);} }
+
+  .name{ font-size:22px; font-weight:700; letter-spacing:1px;
+    background:linear-gradient(90deg, var(--iris-a), var(--rose));
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  .chatlog{
+    width:100%; max-height:38vh; overflow-y:auto;
+    display:flex; flex-direction:column; gap:10px; padding:4px 2px;
+  }
+  .msg{ max-width:85%; padding:10px 14px; border-radius:14px; font-size:14px; line-height:1.8; white-space:pre-wrap; }
+  .msg.user{ align-self:flex-start; background:rgba(139,92,246,0.18); border:1px solid rgba(139,92,246,.25); }
+  .msg.bot{ align-self:flex-end; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); }
+
+  .inputRow{ width:100%; display:flex; gap:8px; }
+  .inputRow input{
+    flex:1; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12);
+    color:var(--ink); padding:12px 14px; border-radius:12px; font-family:inherit; font-size:14px; outline:none;
+  }
+  .inputRow input:focus{ border-color: var(--iris-a); }
+  .inputRow button{
+    background:linear-gradient(90deg, var(--iris-a), var(--iris-b));
+    border:none; color:#04140F; font-weight:700; padding:0 18px; border-radius:12px; cursor:pointer; font-family:inherit;
+  }
+  .inputRow button:disabled{ opacity:.5; cursor:default; }
+  .status{ font-size:12px; color:var(--ink-dim); min-height:16px; }
+</style>
+</head>
+<body>
+
+<div class="blob b1"></div>
+<div class="blob b2"></div>
+<div class="blob b3"></div>
+<div class="vignette"></div>
+<div class="stars" id="stars"></div>
+
+<div class="stage">
+  <div class="dmb-wrap" id="dmbWrap">
+    <svg viewBox="0 0 176 120">
+      <defs>
+        <clipPath id="eyeClip">
+          <path d="M8,60 C30,20 60,4 88,4 C116,4 146,20 168,60 C146,100 116,116 88,116 C60,116 30,100 8,60 Z"/>
+        </clipPath>
+        <radialGradient id="scleraGrad" cx="50%" cy="45%" r="65%">
+          <stop offset="0%" stop-color="#FBF6EF"/><stop offset="70%" stop-color="var(--sclera)"/><stop offset="100%" stop-color="#CFC6B8"/>
+        </radialGradient>
+        <radialGradient id="irisGrad" cx="50%" cy="45%" r="55%">
+          <stop offset="0%" stop-color="#BDEFE0"/><stop offset="35%" stop-color="var(--iris-a)"/><stop offset="70%" stop-color="var(--iris-b)"/><stop offset="100%" stop-color="var(--iris-c)"/>
+        </radialGradient>
+        <filter id="fibers" x="-30%" y="-30%" width="160%" height="160%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="9" result="n"/>
+          <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.9 0.9 0.9 0 0" result="mask"/>
+          <feComposite in="mask" in2="SourceGraphic" operator="in"/>
+        </filter>
+        <radialGradient id="pupilGrad" cx="45%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#2A2118"/><stop offset="100%" stop-color="#000000"/>
+        </radialGradient>
+        <radialGradient id="lidShade" cx="50%" cy="0%" r="90%">
+          <stop offset="0%" stop-color="#000" stop-opacity=".35"/><stop offset="100%" stop-color="#000" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <g clip-path="url(#eyeClip)">
+        <rect x="0" y="0" width="176" height="120" fill="url(#scleraGrad)"/>
+        <path d="M20,55 Q40,50 55,58" stroke="#D98A8A" stroke-width="0.8" opacity=".25" fill="none"/>
+        <path d="M150,68 Q135,60 120,64" stroke="#D98A8A" stroke-width=".8" opacity=".2" fill="none"/>
+        <g id="iris-group" style="animation: lookAround 7s ease-in-out infinite; transform-origin:88px 60px;">
+          <circle cx="88" cy="60" r="34" fill="url(#irisGrad)"/>
+          <circle cx="88" cy="60" r="34" fill="url(#irisGrad)" filter="url(#fibers)" opacity=".55"/>
+          <circle cx="88" cy="60" r="34" fill="none" stroke="#06222B" stroke-width="2" opacity=".5"/>
+          <circle id="pupil" cx="88" cy="60" r="14" fill="url(#pupilGrad)" style="animation: pupilPulse 4.2s ease-in-out infinite; transform-origin:88px 60px;"/>
+          <circle cx="82" cy="52" r="5" fill="#fff" opacity=".85"/>
+          <circle cx="94" cy="66" r="2.2" fill="#fff" opacity=".4"/>
+        </g>
+        <rect x="0" y="0" width="176" height="60" fill="url(#lidShade)"/>
+      </g>
+      <path d="M8,60 C30,20 60,4 88,4 C116,4 146,20 168,60 C146,100 116,116 88,116 C60,116 30,100 8,60 Z" fill="none" stroke="#3A2E22" stroke-width="2.5" opacity=".55"/>
+      <g clip-path="url(#eyeClip)">
+        <rect class="lidTop" x="0" y="-64" width="176" height="64" fill="var(--skin)"/>
+        <rect class="lidBottom" x="0" y="120" width="176" height="64" fill="var(--skin)"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="name">dmb</div>
+
+  <div class="chatlog" id="chatlog"></div>
+  <div class="status" id="status"></div>
+  <div class="inputRow">
+    <button id="sendBtn">فرستادن</button>
+    <input id="msgInput" type="text" placeholder="از dmb هرچی می‌خوای بپرس..." />
+  </div>
+</div>
+
+<script>
+  const wrap = document.getElementById('dmbWrap');
+  const chatlog = document.getElementById('chatlog');
+  const input = document.getElementById('msgInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const statusEl = document.getElementById('status');
+
+  function addMsg(text, who){
+    const d = document.createElement('div');
+    d.className = 'msg ' + who;
+    d.textContent = text;
+    chatlog.appendChild(d);
+    chatlog.scrollTop = chatlog.scrollHeight;
+  }
+
+  function blink(){
+    wrap.classList.add('blink');
+    setTimeout(()=> wrap.classList.remove('blink'), 340);
+    setTimeout(blink, 2600 + Math.random()*3200);
+  }
+  setTimeout(blink, 1500);
+
+  async function send(){
+    const text = input.value.trim();
+    if(!text) return;
+    addMsg(text, 'user');
+    input.value = '';
+    sendBtn.disabled = true;
+    wrap.classList.add('thinking');
+    statusEl.textContent = 'dmb داره فکر می‌کنه...';
+
+    try{
+      const res = await fetch('/api/chat', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ message: text })
+      });
+      const data = await res.json();
+      if(data.error){
+        addMsg('خطا: ' + data.error, 'bot');
+      } else {
+        addMsg(data.reply, 'bot');
+      }
+    } catch(e){
+      addMsg('اتصال برقرار نشد. اینترنتت رو چک کن.', 'bot');
+    } finally {
+      wrap.classList.remove('thinking');
+      statusEl.textContent = '';
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  sendBtn.addEventListener('click', send);
+  input.addEventListener('keydown', e => { if(e.key === 'Enter') send(); });
+
+  const starsEl = document.getElementById('stars');
+  for(let s=0; s<60; s++){
+    const el = document.createElement('span');
+    const size = (Math.random()*2 + 0.6).toFixed(1);
+    el.style.width = size+'px'; el.style.height = size+'px';
+    el.style.left = Math.random()*100 + '%'; el.style.top = Math.random()*100 + '%';
+    el.style.opacity = (Math.random()*.5+.15).toFixed(2);
+    el.animate(
+      [{opacity:el.style.opacity},{opacity:(Math.random()*.7+.3)},{opacity:el.style.opacity}],
+      {duration: 2500 + Math.random()*4000, iterations: Infinity, delay: Math.random()*3000}
+    );
+    starsEl.appendChild(el);
+  }
+
+  if('serviceWorker' in navigator){ /* برای نصب روی صفحه‌ی خانه، اگه manifest کامل شه */ }
+</script>
+
+</body>
+</html>
