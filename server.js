@@ -1,35 +1,96 @@
-# راه‌اندازی dmb — رایگان و سریع
+const express = require('express');
+const path = require('path');
+const fs = require('fs');
 
-این نسخه کاملاً رایگانه: از Google Gemini (که لایه‌ی رایگان واقعی داره، بدون کارت بانکی)
-و از Render.com (هاستینگ رایگان، بدون کارت بانکی) استفاده می‌کنه.
+const app = express();
+const PORT = process.env.PORT || 3000;
+const API_KEY = process.env.GEMINI_API_KEY;
+const MODEL = process.env.DMB_MODEL || 'gemini-2.0-flash';
+const MEMORY_FILE = path.join(__dirname, 'data', 'memory.json');
 
-## قدم ۱ — گرفتن کلید رایگان هوش مصنوعی (۲ دقیقه)
-1. برو به aistudio.google.com
-2. با حساب گوگلت وارد شو (همون جیمیلی که داری)
-3. از منو "Get API key" رو بزن → "Create API key"
-4. کلید رو کپی کن — رایگانه و کارت بانکی نمی‌خواد
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-## قدم ۲ — آپلود و روشن کردن سرور (۵ دقیقه)
-1. برو به render.com و با ایمیل یا گیت‌هاب ثبت‌نام کن (رایگان، بدون کارت بانکی)
-2. "New" → "Web Service" → این پوشه رو آپلود کن یا از گیت‌هاب وصل کن
-3. تنظیمات:
-   - Build Command: `npm install`
-   - Start Command: `npm start`
-4. تو بخش Environment، یه متغیر اضافه کن:
-   - Key: `GEMINI_API_KEY`
-   - Value: همون کلیدی که تو قدم ۱ گرفتی
-5. Deploy بزن. بعد از چند دقیقه یه لینک بهت می‌ده (مثلاً dmb.onrender.com)
+function ensureDataDir() {
+  const dir = path.join(__dirname, 'data');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(MEMORY_FILE)) {
+    fs.writeFileSync(MEMORY_FILE, JSON.stringify({ facts: [], history: [] }, null, 2));
+  }
+}
+function loadMemory() {
+  ensureDataDir();
+  try { return JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf8')); }
+  catch { return { facts: [], history: [] }; }
+}
+function saveMemory(mem) {
+  ensureDataDir();
+  fs.writeFileSync(MEMORY_FILE, JSON.stringify(mem, null, 2));
+}
 
-نکته: پلن رایگان Render بعد از ۱۵ دقیقه بی‌کاری "می‌خوابه" و اولین پیام بعد از یه مدت
-بی‌استفاده‌بودن، ۲۰-۳۰ ثانیه کندتر جواب می‌ده (چون داره بیدار می‌شه). این تنها هزینه‌ی
-رایگان‌بودنه — بعداً اگه خواستی می‌تونیم با یه هزینه‌ی کم این تاخیر رو هم برداریم.
+const BASE_SYSTEM_PROMPT = `تو "dmb" هستی، دستیار شخصی هوشمند احمد موسوی، صاحب موبایل آرمان در ساری.
+همیشه به فارسی و خودمونی و مفید جواب بده، مگر اینکه ازت به زبان دیگه‌ای بپرسه.
+کارهایی که احمد ازت می‌خواد رو دقیق و بدون حاشیه‌ی زیاد انجام بده.
+اگه چیزی رو مطمئن نیستی، صادقانه بگو مطمئن نیستی به‌جای حدس زدن.`;
 
-## قدم ۳ — نصب رو گوشی‌ها و سیستم‌ها
-- سامسونگ / آیفون: لینک رو تو مرورگر باز کن → منو → "Add to Home Screen"
-- لپ‌تاپ / سیستم مغازه: Chrome → منو → "Install dmb"
+app.post('/api/chat', async (req, res) => {
+  if (!API_KEY) {
+    return res.status(500).json({ error: 'GEMINI_API_KEY تنظیم نشده روی سرور.' });
+  }
+  const userMessage = (req.body.message || '').trim();
+  if (!userMessage) return res.status(400).json({ error: 'پیام خالیه.' });
 
-## بعدش چی؟
-حرف‌هایی که به dmb می‌زنی تو فایل `data/memory.json` رو سرور ذخیره می‌مونه.
-هروقت خواستی قابلیت جدید اضافه کنیم، برمی‌گردیم همین پروژه رو گسترش می‌دیم.
+  const mem = loadMemory();
+  const factsBlock = mem.facts.length
+    ? `\n\nچیزهایی که قبلاً درباره‌ی احمد یاد گرفتی:\n- ${mem.facts.join('\n- ')}`
+    : '';
 
-اگه جایی گیر کردی، دقیق بگو تو کدوم قدمی و چی می‌بینی.
+  const historyContents = mem.history.slice(-20).map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }]
+  }));
+
+  const contents = [...historyContents, { role: 'user', parts: [{ text: userMessage }] }];
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: BASE_SYSTEM_PROMPT + factsBlock }] },
+        contents
+      })
+    });
+
+    const data = await response.json();
+    if (data.error) {
+      return res.status(500).json({ error: data.error.message || 'خطا از سمت Gemini API' });
+    }
+
+    const reply = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('\n') || 'جوابی برنگشت.';
+
+    mem.history.push({ role: 'user', content: userMessage });
+    mem.history.push({ role: 'assistant', content: reply });
+    if (mem.history.length > 60) mem.history = mem.history.slice(-60);
+    saveMemory(mem);
+
+    res.json({ reply });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'ارتباط با Gemini برقرار نشد.' });
+  }
+});
+
+app.post('/api/remember', (req, res) => {
+  const fact = (req.body.fact || '').trim();
+  if (!fact) return res.status(400).json({ error: 'fact خالیه.' });
+  const mem = loadMemory();
+  mem.facts.push(fact);
+  saveMemory(mem);
+  res.json({ ok: true, facts: mem.facts });
+});
+
+app.listen(PORT, () => {
+  console.log(`dmb روی پورت ${PORT} روشنه`);
+});
