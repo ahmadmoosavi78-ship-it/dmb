@@ -1,0 +1,9 @@
+{
+  "name": "dmb",
+  "short_name": "dmb",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#05060C",
+  "theme_color": "#05060C",
+  "icons": []
+}
